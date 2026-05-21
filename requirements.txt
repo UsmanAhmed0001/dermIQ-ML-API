@@ -4,6 +4,4 @@ transformers
 torch
 Pillow
 gunicorn
-grad-cam
 numpy
-opencv-python-headless
