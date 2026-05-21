@@ -4,3 +4,6 @@ transformers
 torch
 Pillow
 gunicorn
+pytorch-grad-cam
+numpy
+opencv-python-headless
