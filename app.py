@@ -8,7 +8,14 @@ from PIL import Image
 from transformers import ViTForImageClassification, ViTImageProcessor
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins="*")
+
+@app.after_request
+def add_cors(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    response.headers["Access-Control-Allow-Methods"] = "POST, GET, OPTIONS"
+    return response
 
 MODEL_ID = "Uzzyy/dermiq-skin-classifier"
 processor = None
@@ -55,8 +62,11 @@ def is_skin(image_pil: Image.Image, threshold: float = 0.07) -> tuple:
 def health():
     return jsonify({"status": "running", "model_ready": model_ready})
 
-@app.route("/classify", methods=["POST"])
+@app.route("/classify", methods=["POST", "OPTIONS"])
 def classify():
+    if request.method == "OPTIONS":
+        return jsonify({}), 200
+
     if not model_ready:
         return jsonify({
             "error": "Model is warming up. Please try again in 20 seconds.",
@@ -72,7 +82,6 @@ def classify():
     except Exception:
         return jsonify({"error": "Could not read image. Please try again."}), 400
 
-    # Skin detection
     skin_ok, skin_ratio = is_skin(image_pil)
     if not skin_ok:
         return jsonify({
@@ -80,7 +89,6 @@ def classify():
             "code": "NO_SKIN", "skin_ratio": skin_ratio,
         }), 422
 
-    # Classification
     inputs = processor(images=image_pil, return_tensors="pt")
     with torch.no_grad():
         outputs = model(**inputs)
@@ -92,7 +100,6 @@ def classify():
     ]
     predictions.sort(key=lambda x: x["score"], reverse=True)
 
-    # Confidence gate — rejects images where skin is visible but no clear lesion
     if predictions[0]["score"] < 0.35:
         return jsonify({
             "error": "No skin lesion detected. Please take a close-up photo of the specific lesion you want to analyse.",
